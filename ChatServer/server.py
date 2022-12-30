@@ -7,22 +7,26 @@ FORMAT = 'utf-8'  # Define the encoding format of messages from client-server
 ADDR = (HOST, PORT)  # Creating a tuple of IP+PORT
 Group_IDs = set()
 Psw = dict()
-GroupMem = dict()
+GroupMem = dict()#Group members
+GroupChat = dict()
 
 def listenToMes(conn, groupID):
     while True:
-        mes = conn.recv(1024)
+        mes = conn.recv(1024).decode(FORMAT)
+        GroupChat[groupID].append(mes)
+        name = mes.split(':')[0]
         for i in range(len(GroupMem[groupID])):
-            conn.send(mes)
+            if GroupMem[groupID][i][0] != name:
+                GroupMem[groupID][i][1].send(mes.encode(FORMAT))
 
 def Handle_Client(conn, add):
-    Opening_message = "Hello client, please choose an option:\n1. Connect to a group chat.\n2. Create a group chat.3. Exit the server."
+    Opening_message = "Hello client, please choose an option:\n1. Connect to a group chat.\n2. Create a group chat.\n3. Exit the server."
     conn.send(Opening_message.encode(FORMAT))
     rec = conn.recv(1024).decode(FORMAT)
 
     try:
         groupID=0
-        if rec == 1:
+        if rec == '1':
             conn.send("Enter your name:".encode(FORMAT))# Asking for client's name
             client_name = conn.recv(1024).decode(FORMAT)
             conn.send("Enter group ID:".encode(FORMAT))  # Asking for Group ID
@@ -31,22 +35,32 @@ def Handle_Client(conn, add):
             psw = conn.recv(1024).decode(FORMAT)
 
             if groupID in Group_IDs and psw == Psw[groupID]:
-                GroupMem[groupID].append(client_name, conn)
-        elif rec == 2:
+                GroupMem[groupID].append((client_name, conn))
+
+                #Send all previous messages
+                MesHis="You’re connected to group chat "+groupID+"\n"
+                for mes in GroupChat[groupID]:
+                    MesHis += mes+"\n"
+                conn.send(MesHis.encode(FORMAT))
+
+        elif rec == '2':
             conn.send("Enter your name:".encode(FORMAT))  # Asking for client's name
             client_name = conn.recv(1024).decode(FORMAT)
             conn.send("Enter password:".encode(FORMAT))  # Asking for password
             psw = conn.recv(1024).decode(FORMAT)
-            groupID = len(Group_IDs)+1
+            groupID = str(len(Group_IDs)+1)
             Group_IDs.add(groupID)
+            conn.send(("Group ID generated: " + groupID+"\nYou’re connected to the group chat").encode(FORMAT))
             Psw[groupID] = psw
-            GroupMem[groupID] = [(client_name, conn)]
-            conn.send(("Group ID generated: "+str(groupID)).encode(FORMAT))  # Asking for client's name
-        elif rec == 3:
+            GroupMem[groupID] = [(client_name, conn)]# Add group member
+
+            GroupChat[groupID] = []# initialize group messages
+
+        elif rec == '3':
             conn.close()
 
-        listenToMes(conn, groupID)
 
+        listenToMes(conn, groupID)
     except:
         pass
 
